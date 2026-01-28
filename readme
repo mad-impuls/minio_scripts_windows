@@ -7,7 +7,7 @@
 Скачает WinSW WinSW.NET4.exe и сохранит рядом как minio-service.exe (это “обёртка” службы).
 Создаст рядом файл minio-service.xml с конфигом службы: запускаемый файл minio.exe, переменные MINIO_ROOT_USER=minio и MINIO_ROOT_PASSWORD=minio123, аргументы server C:\minio, logmode=rotate.
 Запустит minio-service.exe install и зарегистрирует службу с именем/ID MinIO в системе, после чего напишет Installation done
-В дефолтном XML внутри скрипта задан пароль minio123
+В дефолтном XML внутри скрипта задан пароль minioadmin\minioadmin123
 
 ***local test start-minio.bat
 локальный тестовый запуск: он задаёт root‑креды через переменные окружения и стартует MinIO, храня данные в C:\MinIOBase, API на :9000, консоль на :9001
