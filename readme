@@ -1,1 +1,53 @@
+***install-service.ps1
 
+из репозитория minio/minio-service делает простую автоматическую установку MinIO как службы Windows через WinSW
+Что он сделает по шагам
+Проверит, что скрипт запущен от администратора, и если нет — перезапустит себя с UAC (-Verb RunAs) и выйдет из текущего окна.
+Перейдёт в папку, где лежит скрипт (Set-Location -Path $PSScriptRoot).​
+Скачает WinSW WinSW.NET4.exe и сохранит рядом как minio-service.exe (это “обёртка” службы).
+Создаст рядом файл minio-service.xml с конфигом службы: запускаемый файл minio.exe, переменные MINIO_ROOT_USER=minio и MINIO_ROOT_PASSWORD=minio123, аргументы server C:\minio, logmode=rotate.
+Запустит minio-service.exe install и зарегистрирует службу с именем/ID MinIO в системе, после чего напишет Installation done
+В дефолтном XML внутри скрипта задан пароль minio123
+
+***local test start-minio.bat
+локальный тестовый запуск: он задаёт root‑креды через переменные окружения и стартует MinIO, храня данные в C:\MinIOBase, API на :9000, консоль на :9001
+поменять креды на minio\minio123
+
+***uninstall-service.ps1
+Проверяет PowerShell 5.1 (#Requires -Version 5.1).
+Включает строгий режим (Set-StrictMode -Version Latest) и делает ошибки фатальными ($ErrorActionPreference="Stop").
+Проверяет, запущен ли скрипт как администратор (IsInRole(Administrator)).
+Если не админ: запускает этот же скрипт в новом окне PowerShell с UAC (Start-Process ... -Verb RunAs ... -File "$PSCommandPath"), затем ждёт Enter и выходит.
+Если админ: объявляет функции Ask-YesNo, Pause-End, TryRun.
+Задаёт переменные: имя службы MinIO, пути C:\MinIO, C:\MinIOBase, C:\MinIO\logs, и путь к C:\MinIO\minio-service.exe.
+Создаёт имя файла лога в %TEMP% и включает запись transcript (Start-Transcript ...).
+Печатает на экран “шапку”: что за служба, какие папки будут затронуты, где лежит WinSW, где лежит transcript-лог.
+Собирает список “кандидатов” на конфиги mc: берёт MC_CONFIG_DIR (Machine/User) + добавляет типовые пути в профиле (%USERPROFILE%/%APPDATA%), убирает дубли.​
+Задаёт пользователю 7 вопросов (удалять ли: службу, бинарники, логи, данные, firewall-правила, конфиги mc, ENV) и сохраняет ответы.
+Печатает итоговый “План” (все выбранные true/false).
+Спрашивает финальное подтверждение “Продолжить?”; если нет — бросает исключение “Отменено пользователем.” и переходит в catch/finally.
+Если выбран пункт “удалить службу”:
+Останавливает службу (Stop-Service и sc stop).
+Ждёт до 30 секунд, пока она станет Stopped (WaitForStatus).
+Если есть minio-service.exe, выполняет minio-service.exe uninstall.
+Выполняет sc delete MinIO.
+Ждёт в цикле, пока Get-Service MinIO перестанет находить службу; если не исчезла — кидает ошибку с подсказкой про marked for deletion.​
+Если выбран пункт “удалить firewall”:
+Находит правила Windows Firewall, у которых DisplayName содержит MinIO.
+Показывает список и просит подтверждение.
+Если подтвердили — удаляет через Remove-NetFirewallRule.​
+Если выбран пункт “удалить конфиги mc”:
+Берёт из mcCandidates только реально существующие папки.
+Показывает список и просит подтверждение.
+Если подтвердили — удаляет Remove-Item -Recurse -Force.
+Если выбран пункт “удалить ENV”:
+Проверяет переменные MINIO_* и MC_CONFIG_DIR в scope Machine и User.
+Для каждой найденной показывает значение и спрашивает, удалять ли.
+Если да — удаляет через SetEnvironmentVariable(..., $null, scope).
+Если выбран пункт “удалить каталоги”:
+Удаляет LogsDir (если существует).
+Удаляет DataDir (если существует).
+Удаляет MinioDir (если существует).
+Если всё прошло без ошибок — печатает “ГОТОВО” и путь к transcript-файлу.
+Если где-то произошла ошибка — попадает в catch, печатает текст ошибки и путь к transcript-файлу.
+В finally всегда: останавливает transcript (Stop-Transcript) и ждёт Enter (Pause-End), чтобы окно не закрылось.
